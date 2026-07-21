@@ -104,6 +104,11 @@ final class MaintenanceStatusService {
                 .buildTask(pluginInstance, this::pollRequestFile)
                 .repeat(2, TimeUnit.SECONDS)
                 .schedule();
+
+        logger.info(
+                "Maintenance API connected - writing {} on state changes, watching {} for requests",
+                statusFile,
+                requestFile);
     }
 
     private void writeStatus() {
@@ -115,6 +120,12 @@ final class MaintenanceStatusService {
         final StatusFile status = StatusFile.now(
                 api.isMaintenance(), api.getSettings().activeReason(), plannedEndsAtEpochSeconds.get(), servers);
 
+        logger.info(
+                "Refreshing {}: maintenance={}, reason={}, servers={}",
+                statusFile,
+                status.maintenance(),
+                status.reason(),
+                status.servers());
         writeAtomic(statusFile, gson.toJson(status));
     }
 
@@ -142,6 +153,13 @@ final class MaintenanceStatusService {
             return;
         }
 
+        logger.info(
+                "Applying maintenance request from {}: maintenance={}, server={}, reason={}, minutes={}",
+                requestFile,
+                request.maintenance(),
+                request.server(),
+                request.reason(),
+                request.minutes());
         applyRequest(request);
 
         try {
