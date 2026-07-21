@@ -1,0 +1,20 @@
+---
+name: Lint
+
+on: # yamllint disable-line rule:truthy
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  super-lint:
+    uses: miikkak/workflows/.github/workflows/super-linter.yml@main
+    secrets: inherit
+    with:
+      validate-bash: false
+      validate-json: true
