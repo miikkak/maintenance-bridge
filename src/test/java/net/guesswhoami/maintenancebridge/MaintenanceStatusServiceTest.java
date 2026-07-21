@@ -63,4 +63,18 @@ class MaintenanceStatusServiceTest {
         // status.json must never end up publishing maintenance=false with a stale ETA regardless.
         assertNull(MaintenanceStatusService.computePlannedEndsAt(false, 15L, now));
     }
+
+    @Test
+    void reasonReportedWhileMaintenanceIsOn() {
+        assertEquals("Planned restart", MaintenanceStatusService.reportedReason(true, "Planned restart"));
+    }
+
+    @Test
+    void reasonSuppressedWhileMaintenanceIsOff() {
+        // Mirrors what was observed live: Maintenance's own activeReason() can stay set to a
+        // stale value after maintenance is turned off through a path this plugin doesn't
+        // control (RCON, an in-game command, restart tooling) - status.json must not report it
+        // regardless of how maintenance actually got turned off.
+        assertNull(MaintenanceStatusService.reportedReason(false, "Stale reason from a previous on-cycle"));
+    }
 }
