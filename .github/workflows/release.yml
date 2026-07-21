@@ -1,0 +1,74 @@
+---
+name: Release
+
+on: # yamllint disable-line rule:truthy
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (e.g., v1.2.3)"
+        required: true
+        type: string
+
+concurrency:
+  group: >-
+    ${{ github.workflow }}-${{
+      github.event_name == 'workflow_dispatch' && inputs.tag || github.ref
+    }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build and Release
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Determine version
+        id: version
+        env:
+          DISPATCH_TAG: ${{ inputs.tag }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="$DISPATCH_TAG"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: ./gradlew build -PreleaseVersion="$RELEASE_VERSION" --no-daemon
+
+      - name: Locate jar
+        id: jar
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          JAR_PATH=$(find build/libs -maxdepth 1 -name "maintenance-bridge-${RELEASE_VERSION}.jar")
+          if [[ -z "$JAR_PATH" ]]; then
+            echo "::error::no jar found in build/libs matching maintenance-bridge-${RELEASE_VERSION}.jar"
+            exit 1
+          fi
+          echo "path=${JAR_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          files: ${{ steps.jar.outputs.path }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

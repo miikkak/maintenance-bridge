@@ -16,6 +16,18 @@ Early scaffold — infra and CI are wired up, plugin logic is not implemented ye
 
 Requires JDK 25.
 
+## Testing a release build
+
+Tagging `main` with `vX.Y.Z` (or running the `Release` workflow manually with a `tag` input)
+builds the jar and attaches it to a GitHub Release. Download and drop it into a Velocity
+server's `plugins/` directory to test:
+
+```bash
+gh release download vX.Y.Z -R miikkak/maintenance-bridge -p '*.jar' -D /path/to/velocity/plugins/
+```
+
+There is no automated deploy yet — this is manual, on-demand testing only.
+
 ## License
 
 TBD
