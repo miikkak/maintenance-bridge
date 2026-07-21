@@ -1,6 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "local>miikkak/renovate-config"
+  "extends": ["local>miikkak/renovate-config"],
+  "packageRules": [
+    {
+      "matchPackageNames": ["com.google.code.gson:gson"],
+      "enabled": false,
+      "description": "Deliberately pinned to the version bundled in Velocity's own runtime jar (not shaded) - see the comment in build.gradle.kts. Bumping this requires manually re-verifying against the actual shipped Velocity jar, not an automated update."
+    }
   ]
 }
