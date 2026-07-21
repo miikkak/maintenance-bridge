@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -45,6 +46,12 @@ final class MaintenanceStatusService {
     private static final Set<PosixFilePermission> WORLD_READABLE_PERMISSIONS =
             PosixFilePermissions.fromString("rw-rw-r--");
 
+    // The request.json read is polled every 2 seconds regardless of state, so a persistent
+    // failure (e.g. a caller writing the file with the wrong permissions) would otherwise log
+    // an error every single poll. Log the first occurrence immediately, then at most this often
+    // while the same condition persists.
+    private static final Duration READ_ERROR_LOG_INTERVAL = Duration.ofMinutes(5);
+
     private final MaintenanceProxy api;
     // Velocity's Scheduler#buildTask requires the actual @Plugin-annotated instance (it looks the
     // object up via PluginManager#fromInstance and throws IllegalArgumentException otherwise) -
@@ -57,6 +64,9 @@ final class MaintenanceStatusService {
     private final Path requestFile;
     private final Path rejectedRequestFile;
     private final AtomicReference<Long> plannedEndsAtEpochSeconds = new AtomicReference<>();
+    // Only ever touched from pollRequestFile(), which Velocity's scheduler invokes serially for
+    // a single repeating task - no concurrent access, no need for atomics here.
+    private Instant lastReadErrorLoggedAt = Instant.MIN;
 
     MaintenanceStatusService(
             final MaintenanceProxy api, final Object pluginInstance, final Path dataDirectory, final Logger logger) {
@@ -136,9 +146,17 @@ final class MaintenanceStatusService {
         } catch (final NoSuchFileException e) {
             return; // no request pending - the common case, nothing to log
         } catch (final IOException e) {
-            logger.error("Failed to read maintenance request file: {}", e.getMessage());
+            final Instant now = Instant.now();
+            if (Duration.between(lastReadErrorLoggedAt, now).compareTo(READ_ERROR_LOG_INTERVAL) >= 0) {
+                logger.error(
+                        "Failed to read maintenance request file: {} (repeated identical failures logged at most every {})",
+                        e.getMessage(),
+                        READ_ERROR_LOG_INTERVAL);
+                lastReadErrorLoggedAt = now;
+            }
             return;
         }
+        lastReadErrorLoggedAt = Instant.MIN; // condition cleared - a future failure logs immediately again
 
         final MaintenanceRequest request;
         try {
