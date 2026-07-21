@@ -178,8 +178,18 @@ final class MaintenanceStatusService {
         // if the reason/ETA were still set afterward, that event-triggered write would publish
         // maintenance=true next to the previous reason for a brief window (observed on the real
         // proxy: two refreshes logged for one request, the first with a stale reason).
-        if (request.reason() != null) {
-            api.getSettings().setActiveReason(request.reason());
+        if (request.maintenance()) {
+            if (request.reason() != null) {
+                api.getSettings().setActiveReason(request.reason());
+            }
+        } else {
+            // Reason is only meaningful while maintenance is on - always clear it when turning
+            // off, regardless of what the request's reason field says, mirroring how
+            // computePlannedEndsAt always nulls the ETA on an "off" request below. Otherwise
+            // status.json can publish maintenance=false next to a stale reason from the previous
+            // on-cycle (observed live: turning maintenance off with reason:null left the prior
+            // reason in place).
+            api.getSettings().setActiveReason(null);
         }
         plannedEndsAtEpochSeconds.set(
                 computePlannedEndsAt(request.maintenance(), request.minutes(), Instant.now()));
