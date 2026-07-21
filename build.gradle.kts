@@ -78,12 +78,14 @@ val generateBuildInfo = tasks.register("generateBuildInfo") {
     }
 }
 
+// Registering the task itself (not just its output directory) as the source dir lets Gradle
+// infer compileJava's dependency on generateBuildInfo automatically from the source set's
+// build dependencies, instead of needing an explicit compileJava.dependsOn(generateBuildInfo) -
+// so tooling that queries source directories without running compileJava directly (IDE import,
+// incremental analysis) still sees the correct producing task, not just a directory that may
+// not exist yet.
 sourceSets {
     main {
-        java.srcDir(generatedSourcesDir)
+        java.srcDir(generateBuildInfo)
     }
-}
-
-tasks.compileJava {
-    dependsOn(generateBuildInfo)
 }
