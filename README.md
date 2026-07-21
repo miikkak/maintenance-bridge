@@ -58,6 +58,11 @@ Drop this to toggle maintenance without RCON:
 - `reason` and `minutes` are optional.
 - The file is deleted once processed. A malformed request is moved aside to
   `request.json.rejected` instead of crashing the poll loop.
+- **Write the file with correct permissions from the start** (e.g. `install -m 644` or an
+  equivalent atomic write+chmod), not a plain write followed by a separate `chmod`. The plugin
+  runs as whatever user owns the proxy process; if the file is briefly unreadable to that user,
+  each poll attempt during that window logs an error and retries on the next cycle rather than
+  silently waiting.
 
 ## Requirements
 

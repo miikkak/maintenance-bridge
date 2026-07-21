@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -45,6 +46,12 @@ final class MaintenanceStatusService {
     private static final Set<PosixFilePermission> WORLD_READABLE_PERMISSIONS =
             PosixFilePermissions.fromString("rw-rw-r--");
 
+    // The request.json read is polled every 2 seconds regardless of state, so a persistent
+    // failure (e.g. a caller writing the file with the wrong permissions) would otherwise log
+    // an error every single poll. Log the first occurrence immediately, then at most this often
+    // while the same condition persists.
+    private static final Duration READ_ERROR_LOG_INTERVAL = Duration.ofMinutes(5);
+
     private final MaintenanceProxy api;
     // Velocity's Scheduler#buildTask requires the actual @Plugin-annotated instance (it looks the
     // object up via PluginManager#fromInstance and throws IllegalArgumentException otherwise) -
@@ -57,6 +64,9 @@ final class MaintenanceStatusService {
     private final Path requestFile;
     private final Path rejectedRequestFile;
     private final AtomicReference<Long> plannedEndsAtEpochSeconds = new AtomicReference<>();
+    // Only ever touched from pollRequestFile(), which Velocity's scheduler invokes serially for
+    // a single repeating task - no concurrent access, no need for atomics here.
+    private Instant lastReadErrorLoggedAt = Instant.MIN;
 
     MaintenanceStatusService(
             final MaintenanceProxy api, final Object pluginInstance, final Path dataDirectory, final Logger logger) {
@@ -136,9 +146,17 @@ final class MaintenanceStatusService {
         } catch (final NoSuchFileException e) {
             return; // no request pending - the common case, nothing to log
         } catch (final IOException e) {
-            logger.error("Failed to read maintenance request file: {}", e.getMessage());
+            final Instant now = Instant.now();
+            if (Duration.between(lastReadErrorLoggedAt, now).compareTo(READ_ERROR_LOG_INTERVAL) >= 0) {
+                logger.error(
+                        "Failed to read maintenance request file: {} (repeated identical failures logged at most every {})",
+                        e.getMessage(),
+                        READ_ERROR_LOG_INTERVAL);
+                lastReadErrorLoggedAt = now;
+            }
             return;
         }
+        lastReadErrorLoggedAt = Instant.MIN; // condition cleared - a future failure logs immediately again
 
         final MaintenanceRequest request;
         try {
@@ -172,16 +190,33 @@ final class MaintenanceStatusService {
     }
 
     private void applyRequest(final MaintenanceRequest request) {
+        // Reason/ETA are set BEFORE toggling maintenance, not after: Maintenance fires
+        // MaintenanceChangedEvent synchronously from within setMaintenance()/
+        // setMaintenanceToServer(), which triggers our own listener's writeStatus() mid-method -
+        // if the reason/ETA were still set afterward, that event-triggered write would publish
+        // maintenance=true next to the previous reason for a brief window (observed on the real
+        // proxy: two refreshes logged for one request, the first with a stale reason).
+        if (request.maintenance()) {
+            if (request.reason() != null) {
+                api.getSettings().setActiveReason(request.reason());
+            }
+        } else {
+            // Reason is only meaningful while maintenance is on - always clear it when turning
+            // off, regardless of what the request's reason field says, mirroring how
+            // computePlannedEndsAt always nulls the ETA on an "off" request below. Otherwise
+            // status.json can publish maintenance=false next to a stale reason from the previous
+            // on-cycle (observed live: turning maintenance off with reason:null left the prior
+            // reason in place).
+            api.getSettings().setActiveReason(null);
+        }
+        plannedEndsAtEpochSeconds.set(
+                computePlannedEndsAt(request.maintenance(), request.minutes(), Instant.now()));
+
         if (request.server() == null) {
             api.setMaintenance(request.maintenance(), null);
         } else {
             api.setMaintenanceToServer(api.getServerOrDummy(request.server()), request.maintenance(), null);
         }
-        if (request.reason() != null) {
-            api.getSettings().setActiveReason(request.reason());
-        }
-        plannedEndsAtEpochSeconds.set(
-                computePlannedEndsAt(request.maintenance(), request.minutes(), Instant.now()));
     }
 
     // Only meaningful when turning maintenance on - null otherwise so status.json never publishes
