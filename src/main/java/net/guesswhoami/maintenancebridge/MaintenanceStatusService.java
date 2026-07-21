@@ -172,16 +172,23 @@ final class MaintenanceStatusService {
     }
 
     private void applyRequest(final MaintenanceRequest request) {
-        if (request.server() == null) {
-            api.setMaintenance(request.maintenance(), null);
-        } else {
-            api.setMaintenanceToServer(api.getServerOrDummy(request.server()), request.maintenance(), null);
-        }
+        // Reason/ETA are set BEFORE toggling maintenance, not after: Maintenance fires
+        // MaintenanceChangedEvent synchronously from within setMaintenance()/
+        // setMaintenanceToServer(), which triggers our own listener's writeStatus() mid-method -
+        // if the reason/ETA were still set afterward, that event-triggered write would publish
+        // maintenance=true next to the previous reason for a brief window (observed on the real
+        // proxy: two refreshes logged for one request, the first with a stale reason).
         if (request.reason() != null) {
             api.getSettings().setActiveReason(request.reason());
         }
         plannedEndsAtEpochSeconds.set(
                 computePlannedEndsAt(request.maintenance(), request.minutes(), Instant.now()));
+
+        if (request.server() == null) {
+            api.setMaintenance(request.maintenance(), null);
+        } else {
+            api.setMaintenanceToServer(api.getServerOrDummy(request.server()), request.maintenance(), null);
+        }
     }
 
     // Only meaningful when turning maintenance on - null otherwise so status.json never publishes
