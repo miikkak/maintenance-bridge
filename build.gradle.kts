@@ -17,8 +17,8 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.velocitypowered:velocity-api:3.5.1")
-    annotationProcessor("com.velocitypowered:velocity-api:3.5.1")
+    compileOnly("com.velocitypowered:velocity-api:4.0.0")
+    annotationProcessor("com.velocitypowered:velocity-api:4.0.0")
 
     testImplementation(platform("org.junit:junit-bom:5.14.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
