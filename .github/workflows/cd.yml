@@ -34,10 +34,6 @@ permissions:
 #
 # Release flow: label-gated semantic-release creates tag → tag push
 # triggers release.yml → build-artifacts → release created
-#
-# NOTE: release.yml is not yet wired up for this repo (see CLAUDE.md /
-# project notes) — semantic-release still tags main, but no build-and-deploy
-# consumes the tag yet.
 # ==============================================================================
 
 jobs:
