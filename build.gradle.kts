@@ -48,3 +48,42 @@ tasks.test {
 tasks.jar {
     archiveBaseName.set("maintenance-bridge")
 }
+
+// @Plugin's version attribute must be a compile-time constant, so it can't reference the
+// Gradle version directly - generate a small constants source file instead, so the version
+// baked into velocity-plugin.json (and thus Velocity's "Loaded plugin ..." log line) can never
+// drift from the actual jar version again.
+val generatedSourcesDir = layout.buildDirectory.dir("generated/sources/buildInfo/java/main")
+
+val generateBuildInfo = tasks.register("generateBuildInfo") {
+    val outputDir = generatedSourcesDir
+    val versionValue = project.version.toString()
+    inputs.property("version", versionValue)
+    outputs.dir(outputDir)
+    doLast {
+        val packageDir = outputDir.get().asFile.resolve("net/guesswhoami/maintenancebridge")
+        packageDir.mkdirs()
+        packageDir.resolve("BuildInfo.java").writeText(
+            """
+            package net.guesswhoami.maintenancebridge;
+
+            final class BuildInfo {
+                static final String VERSION = "$versionValue";
+
+                private BuildInfo() {
+                }
+            }
+            """.trimIndent()
+        )
+    }
+}
+
+sourceSets {
+    main {
+        java.srcDir(generatedSourcesDir)
+    }
+}
+
+tasks.compileJava {
+    dependsOn(generateBuildInfo)
+}
