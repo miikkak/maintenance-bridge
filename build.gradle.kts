@@ -33,6 +33,12 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("com.google.code.gson:gson:2.8.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    // MaintenanceStatusService references these compileOnly types in its field/constructor
+    // signatures, so the test JVM needs them on the runtime classpath just to load the class -
+    // even though the only thing actually under test is a static, dependency-free method.
+    testImplementation("com.velocitypowered:velocity-api:4.0.0")
+    testImplementation("eu.kennytv.maintenance:maintenance-api-proxy:5.0.0")
 }
 
 tasks.test {

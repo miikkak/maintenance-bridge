@@ -40,6 +40,6 @@ public class MaintenanceBridgePlugin {
             return;
         }
 
-        new MaintenanceStatusService(proxyApi, dataDirectory, logger).start(server);
+        new MaintenanceStatusService(proxyApi, this, dataDirectory, logger).start(server);
     }
 }
