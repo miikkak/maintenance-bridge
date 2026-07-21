@@ -29,7 +29,7 @@ dependencies {
     // API newer than what's available at runtime.
     compileOnly("com.google.code.gson:gson:2.8.0")
 
-    testImplementation(platform("org.junit:junit-bom:5.14.4"))
+    testImplementation(platform("org.junit:junit-bom:6.1.2"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("com.google.code.gson:gson:2.8.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
