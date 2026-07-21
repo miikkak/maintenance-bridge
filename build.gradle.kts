@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "net.guesswhoami"
-version = "0.1.0-SNAPSHOT"
+version = (project.findProperty("releaseVersion") as String?) ?: "0.1.0-SNAPSHOT"
 
 java {
     toolchain {
