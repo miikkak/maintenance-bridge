@@ -43,7 +43,7 @@ permissions:
 jobs:
   detect-changes:
     name: Detect Changed Files
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, linux, generic]
     timeout-minutes: 5
     outputs:
       code: ${{ steps.filter.outputs.code }}
@@ -77,7 +77,7 @@ jobs:
 
   check-trigger:
     name: Check Merge Trigger
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, linux, generic]
     timeout-minutes: 5
     needs: detect-changes
     if: needs.detect-changes.result == 'success'
@@ -108,7 +108,7 @@ jobs:
 
   test:
     name: Run Test Suite
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, linux, generic]
     timeout-minutes: 15
     needs: check-trigger
     if: needs.check-trigger.outputs.should_run == 'true' && needs.check-trigger.outputs.skip_code_checks == 'false'
@@ -127,7 +127,7 @@ jobs:
 
   semantic-release:
     name: Publish Release
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, linux, generic]
     timeout-minutes: 10
     needs: [check-trigger, test]
     # Allow running even if test was skipped (docs-only changes)
