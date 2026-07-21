@@ -127,8 +127,10 @@ final class MaintenanceStatusService {
             servers.put(name, api.isMaintenance(api.getServerOrDummy(name)));
         }
 
-        final StatusFile status = StatusFile.now(
-                api.isMaintenance(), api.getSettings().activeReason(), plannedEndsAtEpochSeconds.get(), servers);
+        final boolean maintenance = api.isMaintenance();
+        final String reason = reportedReason(maintenance, api.getSettings().activeReason());
+        final StatusFile status =
+                StatusFile.now(maintenance, reason, plannedEndsAtEpochSeconds.get(), servers);
 
         logger.info(
                 "Refreshing {}: maintenance={}, reason={}, servers={}",
@@ -227,6 +229,16 @@ final class MaintenanceStatusService {
             return null;
         }
         return now.plusSeconds(minutes * 60L).getEpochSecond();
+    }
+
+    // status.json should never report a reason while maintenance is actually off, regardless of
+    // what turned it off - applyRequest() clears Maintenance's own activeReason() when *we*
+    // process an "off" request, but maintenance can also be turned off via RCON, an in-game
+    // command, or restart tooling, none of which necessarily clear activeReason() themselves
+    // (observed live: a restart-script-driven toggle left a stale reason in status.json).
+    // Package-private and static so this is directly unit-testable without a MaintenanceProxy.
+    static String reportedReason(final boolean maintenance, final String activeReason) {
+        return maintenance ? activeReason : null;
     }
 
     // Package-private (not private) so the permissions behavior is directly unit-testable.
