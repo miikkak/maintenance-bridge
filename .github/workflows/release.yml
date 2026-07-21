@@ -35,9 +35,11 @@ jobs:
 
       - name: Determine version
         id: version
+        env:
+          DISPATCH_TAG: ${{ inputs.tag }}
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            TAG="${{ inputs.tag }}"
+            TAG="$DISPATCH_TAG"
           else
             TAG="${GITHUB_REF#refs/tags/}"
           fi
@@ -45,14 +47,18 @@ jobs:
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Build and test
-        run: ./gradlew build -PreleaseVersion="${{ steps.version.outputs.version }}" --no-daemon
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: ./gradlew build -PreleaseVersion="$RELEASE_VERSION" --no-daemon
 
       - name: Locate jar
         id: jar
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          JAR_PATH=$(find build/libs -maxdepth 1 -name '*.jar' | head -1)
+          JAR_PATH=$(find build/libs -maxdepth 1 -name "maintenance-bridge-${RELEASE_VERSION}.jar")
           if [[ -z "$JAR_PATH" ]]; then
-            echo "::error::no jar found in build/libs"
+            echo "::error::no jar found in build/libs matching maintenance-bridge-${RELEASE_VERSION}.jar"
             exit 1
           fi
           echo "path=${JAR_PATH}" >> "$GITHUB_OUTPUT"
