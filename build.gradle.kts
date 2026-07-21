@@ -61,6 +61,10 @@ val generateBuildInfo = tasks.register("generateBuildInfo") {
     inputs.property("version", versionValue)
     outputs.dir(outputDir)
     doLast {
+        // Escaped even though releaseVersion is always a well-formed semver-ish string in
+        // practice (it comes from a git tag via release.yml) - a malformed manual
+        // workflow_dispatch input shouldn't be able to produce broken generated Java source.
+        val escapedVersion = versionValue.replace("\\", "\\\\").replace("\"", "\\\"")
         val packageDir = outputDir.get().asFile.resolve("net/guesswhoami/maintenancebridge")
         packageDir.mkdirs()
         packageDir.resolve("BuildInfo.java").writeText(
@@ -68,7 +72,7 @@ val generateBuildInfo = tasks.register("generateBuildInfo") {
             package net.guesswhoami.maintenancebridge;
 
             final class BuildInfo {
-                static final String VERSION = "$versionValue";
+                static final String VERSION = "$escapedVersion";
 
                 private BuildInfo() {
                 }
