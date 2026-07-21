@@ -16,8 +16,9 @@ import org.slf4j.Logger;
 @Plugin(
         id = "maintenance-bridge",
         name = "maintenance-bridge",
-        version = "0.1.0-SNAPSHOT",
+        version = "0.1.0",
         description = "Bridges maintenance-mode state with mc-healthcheck / minecraft-limbo-waiting-container",
+        authors = {"miikkak"},
         dependencies = {@Dependency(id = "maintenance", optional = true)})
 public class MaintenanceBridgePlugin {
 
@@ -40,6 +41,7 @@ public class MaintenanceBridgePlugin {
             return;
         }
 
+        logger.info("Found Maintenance {} - activating bridge", api.getVersion());
         new MaintenanceStatusService(proxyApi, this, dataDirectory, logger).start(server);
     }
 }

@@ -14,9 +14,12 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
@@ -30,6 +33,17 @@ import org.slf4j.Logger;
  * maintenance actually ends, so a stuck restart never gets waved through by a timer.
  */
 final class MaintenanceStatusService {
+
+    // Files.createTempFile() defaults to owner-only permissions on POSIX (a deliberate JDK
+    // security default for temp files); since status.json/request.json.rejected are produced by
+    // an atomic move of that temp file, they'd otherwise inherit those restrictive permissions
+    // and be unreadable to anything but the proxy's own user - defeating the point of writing
+    // status.json for external readers. Match the rest of the plugins directory (rw-rw-r--).
+    // Must be applied via setPosixFilePermissions() after creation, not createTempFile()'s
+    // FileAttribute varargs - confirmed empirically that this JDK silently ignores permissions
+    // requested that way and creates the file at the umask-restricted default regardless.
+    private static final Set<PosixFilePermission> WORLD_READABLE_PERMISSIONS =
+            PosixFilePermissions.fromString("rw-rw-r--");
 
     private final MaintenanceProxy api;
     // Velocity's Scheduler#buildTask requires the actual @Plugin-annotated instance (it looks the
@@ -90,6 +104,11 @@ final class MaintenanceStatusService {
                 .buildTask(pluginInstance, this::pollRequestFile)
                 .repeat(2, TimeUnit.SECONDS)
                 .schedule();
+
+        logger.info(
+                "Maintenance API connected - writing {} on state changes, watching {} for requests",
+                statusFile,
+                requestFile);
     }
 
     private void writeStatus() {
@@ -101,6 +120,12 @@ final class MaintenanceStatusService {
         final StatusFile status = StatusFile.now(
                 api.isMaintenance(), api.getSettings().activeReason(), plannedEndsAtEpochSeconds.get(), servers);
 
+        logger.info(
+                "Refreshing {}: maintenance={}, reason={}, servers={}",
+                statusFile,
+                status.maintenance(),
+                status.reason(),
+                status.servers());
         writeAtomic(statusFile, gson.toJson(status));
     }
 
@@ -128,6 +153,13 @@ final class MaintenanceStatusService {
             return;
         }
 
+        logger.info(
+                "Applying maintenance request from {}: maintenance={}, server={}, reason={}, minutes={}",
+                requestFile,
+                request.maintenance(),
+                request.server(),
+                request.reason(),
+                request.minutes());
         applyRequest(request);
 
         try {
@@ -162,10 +194,12 @@ final class MaintenanceStatusService {
         return now.plusSeconds(minutes * 60L).getEpochSecond();
     }
 
-    private void writeAtomic(final Path target, final String content) {
+    // Package-private (not private) so the permissions behavior is directly unit-testable.
+    void writeAtomic(final Path target, final String content) {
         Path tmp = null;
         try {
             tmp = Files.createTempFile(dataDirectory, target.getFileName().toString(), ".tmp");
+            Files.setPosixFilePermissions(tmp, WORLD_READABLE_PERMISSIONS);
             Files.writeString(tmp, content, StandardCharsets.UTF_8);
             Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             tmp = null; // moved successfully - nothing left to clean up
