@@ -52,6 +52,11 @@ final class MaintenanceStatusService {
     // while the same condition persists.
     private static final Duration READ_ERROR_LOG_INTERVAL = Duration.ofMinutes(5);
 
+    // request.json is written by whatever local principal owns the restart tooling, but nothing
+    // stops it from growing unbounded (bug, misconfiguration, or a compromised writer) - cap it
+    // well above any legitimate request so Gson never has to parse an attacker-sized payload.
+    private static final long MAX_REQUEST_FILE_SIZE_BYTES = 64 * 1024;
+
     private final MaintenanceProxy api;
     // Velocity's Scheduler#buildTask requires the actual @Plugin-annotated instance (it looks the
     // object up via PluginManager#fromInstance and throws IllegalArgumentException otherwise) -
@@ -144,6 +149,15 @@ final class MaintenanceStatusService {
     private void pollRequestFile() {
         final String json;
         try {
+            final long size = Files.size(requestFile);
+            if (size > MAX_REQUEST_FILE_SIZE_BYTES) {
+                logger.error(
+                        "Rejecting oversized maintenance request file: {} bytes (max {})",
+                        size,
+                        MAX_REQUEST_FILE_SIZE_BYTES);
+                moveAside(requestFile, rejectedRequestFile);
+                return;
+            }
             json = Files.readString(requestFile, StandardCharsets.UTF_8);
         } catch (final NoSuchFileException e) {
             return; // no request pending - the common case, nothing to log
@@ -180,7 +194,16 @@ final class MaintenanceStatusService {
                 request.server(),
                 request.reason(),
                 request.minutes());
-        applyRequest(request);
+        try {
+            applyRequest(request);
+        } catch (final RuntimeException e) {
+            // A request that blows up here (e.g. the backend API rejecting it) must not stay in
+            // place - the poller would just retry it every 2 seconds forever with no way to
+            // recover on its own. Move it aside like a malformed request instead.
+            logger.error("Failed to apply maintenance request from {}: {}", requestFile, e.getMessage());
+            moveAside(requestFile, rejectedRequestFile);
+            return;
+        }
 
         try {
             Files.delete(requestFile);
@@ -192,27 +215,35 @@ final class MaintenanceStatusService {
     }
 
     private void applyRequest(final MaintenanceRequest request) {
-        // Reason/ETA are set BEFORE toggling maintenance, not after: Maintenance fires
-        // MaintenanceChangedEvent synchronously from within setMaintenance()/
-        // setMaintenanceToServer(), which triggers our own listener's writeStatus() mid-method -
-        // if the reason/ETA were still set afterward, that event-triggered write would publish
-        // maintenance=true next to the previous reason for a brief window (observed on the real
-        // proxy: two refreshes logged for one request, the first with a stale reason).
-        if (request.maintenance()) {
-            if (request.reason() != null) {
-                api.getSettings().setActiveReason(request.reason());
+        // status.json has no per-server slot for reason/ETA - only ever mutate the global fields
+        // for proxy-wide requests. MaintenanceRequest.validate() already rejects reason/minutes
+        // on a per-server request, but guard here too: without this, a per-server request would
+        // silently corrupt the reason/ETA reported for the whole proxy (e.g. {"maintenance":
+        // false,"server":"lobby"} would erase the reason for an unrelated proxy-wide window).
+        if (request.server() == null) {
+            // Reason/ETA are set BEFORE toggling maintenance, not after: Maintenance fires
+            // MaintenanceChangedEvent synchronously from within setMaintenance()/
+            // setMaintenanceToServer(), which triggers our own listener's writeStatus()
+            // mid-method - if the reason/ETA were still set afterward, that event-triggered
+            // write would publish maintenance=true next to the previous reason for a brief
+            // window (observed on the real proxy: two refreshes logged for one request, the
+            // first with a stale reason).
+            if (request.maintenance()) {
+                if (request.reason() != null) {
+                    api.getSettings().setActiveReason(request.reason());
+                }
+            } else {
+                // Reason is only meaningful while maintenance is on - always clear it when
+                // turning off, regardless of what the request's reason field says, mirroring how
+                // computePlannedEndsAt always nulls the ETA on an "off" request below. Otherwise
+                // status.json can publish maintenance=false next to a stale reason from the
+                // previous on-cycle (observed live: turning maintenance off with reason:null
+                // left the prior reason in place).
+                api.getSettings().setActiveReason(null);
             }
-        } else {
-            // Reason is only meaningful while maintenance is on - always clear it when turning
-            // off, regardless of what the request's reason field says, mirroring how
-            // computePlannedEndsAt always nulls the ETA on an "off" request below. Otherwise
-            // status.json can publish maintenance=false next to a stale reason from the previous
-            // on-cycle (observed live: turning maintenance off with reason:null left the prior
-            // reason in place).
-            api.getSettings().setActiveReason(null);
+            plannedEndsAtEpochSeconds.set(
+                    computePlannedEndsAt(request.maintenance(), request.minutes(), Instant.now()));
         }
-        plannedEndsAtEpochSeconds.set(
-                computePlannedEndsAt(request.maintenance(), request.minutes(), Instant.now()));
 
         if (request.server() == null) {
             api.setMaintenance(request.maintenance(), null);

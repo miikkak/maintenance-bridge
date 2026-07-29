@@ -55,7 +55,9 @@ Drop this to toggle maintenance without RCON:
 
 - `server: null` targets the whole proxy; a server name (as registered in Velocity) targets
   just that backend.
-- `reason` and `minutes` are optional.
+- `reason` and `minutes` are optional, and only valid alongside `server: null` - `status.json`
+  has no per-server slot for either, so a per-server request that sets them is rejected and
+  moved to `request.json.rejected`.
 - The file is deleted once processed. A malformed request is moved aside to
   `request.json.rejected` instead of crashing the poll loop.
 - **Write the file with correct permissions from the start** (e.g. `install -m 644` or an
@@ -90,10 +92,11 @@ There is no automated deploy yet - this is manual, on-demand testing only.
 
 ## Design notes
 
-- `gson` is deliberately pinned to `2.8.0` and not shaded - it's the exact version Velocity
-  itself bundles at runtime, verified directly against the shipped jar. Bumping it requires
-  re-verifying against whatever Velocity actually ships, not an automated dependency update
-  (see `renovate.json`, which excludes it from Renovate for this reason).
+- `gson` is deliberately pinned to `2.14.0` and not shaded - it's the version Gradle actually
+  resolves `velocity-api:4.0.0`'s own gson dependency to at runtime (verify with `./gradlew
+dependencies --configuration compileClasspath`). Bumping it requires re-verifying against
+  whatever Velocity actually resolves, not an automated dependency update (see `renovate.json`,
+  which excludes it from Renovate for this reason).
 - The plugin's reported version (shown in Velocity's "Loaded plugin ..." log line) is generated
   from the Gradle project version at build time, so it can't drift from the jar filename.
 

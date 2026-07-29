@@ -6,9 +6,9 @@ import java.util.Map;
 /**
  * Snapshot written to {@code status.json} for external readers (scripts, website).
  *
- * <p>Deliberately a plain mutable class, not a record: Velocity 4.0.0 bundles Gson 2.8.0 (which
- * predates Gson's record support, added in 2.10), and reflectively sets fields on instances
- * allocated via {@code Unsafe} - it cannot populate a record's implicitly-final fields.
+ * <p>Deliberately a plain mutable class, not a record: Gson (bundled in Velocity 4.0.0)
+ * reflectively sets fields on instances allocated via {@code Unsafe} - it cannot populate a
+ * record's implicitly-final fields.
  */
 final class StatusFile {
 
