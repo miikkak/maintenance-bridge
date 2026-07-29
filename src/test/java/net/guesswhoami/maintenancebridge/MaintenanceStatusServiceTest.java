@@ -77,4 +77,18 @@ class MaintenanceStatusServiceTest {
         // regardless of how maintenance actually got turned off.
         assertNull(MaintenanceStatusService.reportedReason(false, "Stale reason from a previous on-cycle"));
     }
+
+    @Test
+    void plannedEndsAtReportedWhileMaintenanceIsOn() {
+        assertEquals(1_800_000_000L, MaintenanceStatusService.reportedPlannedEndsAt(true, 1_800_000_000L));
+    }
+
+    @Test
+    void plannedEndsAtSuppressedWhileMaintenanceIsOff() {
+        // Same class of bug as reasonSuppressedWhileMaintenanceIsOff(): our own
+        // plannedEndsAtEpochSeconds field only gets nulled when *we* process an "off" request
+        // via applyRequest() - if maintenance is turned off through RCON, an in-game command, or
+        // restart tooling instead, the field is left stale and must still be suppressed here.
+        assertNull(MaintenanceStatusService.reportedPlannedEndsAt(false, 1_800_000_000L));
+    }
 }

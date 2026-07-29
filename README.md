@@ -58,8 +58,10 @@ Drop this to toggle maintenance without RCON:
 - `reason` and `minutes` are optional, and only valid alongside `server: null` - `status.json`
   has no per-server slot for either, so a per-server request that sets them is rejected and
   moved to `request.json.rejected`.
-- The file is deleted once processed. A malformed request is moved aside to
-  `request.json.rejected` instead of crashing the poll loop.
+- `minutes` must be non-negative and at most 43200 (30 days).
+- The file must be at most 64 KiB. A malformed, oversized, or otherwise rejected request is
+  moved aside to `request.json.rejected` instead of crashing the poll loop, and the file is
+  deleted once successfully processed.
 - **Write the file with correct permissions from the start** (e.g. `install -m 644` or an
   equivalent atomic write+chmod), not a plain write followed by a separate `chmod`. The plugin
   runs as whatever user owns the proxy process; if the file is briefly unreadable to that user,

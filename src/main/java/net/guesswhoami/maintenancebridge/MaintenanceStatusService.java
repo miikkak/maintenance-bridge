@@ -134,8 +134,8 @@ final class MaintenanceStatusService {
 
         final boolean maintenance = api.isMaintenance();
         final String reason = reportedReason(maintenance, api.getSettings().activeReason());
-        final StatusFile status =
-                StatusFile.now(maintenance, reason, plannedEndsAtEpochSeconds.get(), servers);
+        final Long plannedEndsAt = reportedPlannedEndsAt(maintenance, plannedEndsAtEpochSeconds.get());
+        final StatusFile status = StatusFile.now(maintenance, reason, plannedEndsAt, servers);
 
         logger.info(
                 "Refreshing {}: maintenance={}, reason={}, servers={}",
@@ -260,6 +260,16 @@ final class MaintenanceStatusService {
             return null;
         }
         return now.plusSeconds(minutes * 60L).getEpochSecond();
+    }
+
+    // status.json should never report an ETA while maintenance is actually off, regardless of
+    // what turned it off - mirrors reportedReason() below for the same reason: applyRequest()
+    // only nulls plannedEndsAtEpochSeconds when *we* process an "off" request, but maintenance
+    // can also be turned off via RCON, an in-game command, or restart tooling, none of which go
+    // through applyRequest() at all. Package-private and static so this is directly unit-testable
+    // without a MaintenanceProxy.
+    static Long reportedPlannedEndsAt(final boolean maintenance, final Long plannedEndsAtEpochSeconds) {
+        return maintenance ? plannedEndsAtEpochSeconds : null;
     }
 
     // status.json should never report a reason while maintenance is actually off, regardless of
