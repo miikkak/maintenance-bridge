@@ -47,4 +47,28 @@ class MaintenanceRequestTest {
 
         assertDoesNotThrow(request::validate);
     }
+
+    @Test
+    void perServerRequestWithReasonFailsValidation() {
+        final MaintenanceRequest request = gson.fromJson(
+                "{\"maintenance\":true,\"server\":\"lobby\",\"reason\":\"oops\"}", MaintenanceRequest.class);
+
+        assertThrows(IllegalArgumentException.class, request::validate);
+    }
+
+    @Test
+    void perServerRequestWithMinutesFailsValidation() {
+        final MaintenanceRequest request = gson.fromJson(
+                "{\"maintenance\":true,\"server\":\"lobby\",\"minutes\":15}", MaintenanceRequest.class);
+
+        assertThrows(IllegalArgumentException.class, request::validate);
+    }
+
+    @Test
+    void excessiveMinutesFailsValidation() {
+        final MaintenanceRequest request =
+                gson.fromJson("{\"maintenance\":true,\"minutes\":999999999}", MaintenanceRequest.class);
+
+        assertThrows(IllegalArgumentException.class, request::validate);
+    }
 }
