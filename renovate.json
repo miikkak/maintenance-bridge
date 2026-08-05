@@ -1,6 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["local>miikkak/renovate-config"],
+  "extends": [
+    "local>miikkak/renovate-config",
+    "local>miikkak/renovate-config:release-none"
+  ],
   "packageRules": [
     {
       "matchPackageNames": ["com.google.code.gson:gson"],
