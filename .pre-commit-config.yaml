@@ -11,5 +11,6 @@ repos:
       - id: trailing-whitespace
       - id: mixed-line-ending
         args: ["--fix=lf"]
+        exclude: ^gradlew\.bat$
       - id: check-yaml
       - id: check-json
