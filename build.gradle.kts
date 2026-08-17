@@ -16,6 +16,13 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
 }
 
+// Pins resolved dependency versions in gradle.lockfile so CI vulnerability scanning (Trivy's
+// fs scan) can actually see the dependency graph instead of just the version ranges declared
+// below.
+dependencyLocking {
+    lockAllConfigurations()
+}
+
 dependencies {
     compileOnly("com.velocitypowered:velocity-api:4.0.0")
     annotationProcessor("com.velocitypowered:velocity-api:4.0.0")
