@@ -94,6 +94,16 @@ There is no automated deploy yet - this is manual, on-demand testing only.
 
 ## Design notes
 
+- Dependency versions are pinned in `gradle.lockfile` (`dependencyLocking` in `build.gradle.kts`)
+  so CI vulnerability scanning has a real dependency graph to check. Gradle fails the build if a
+  declared dependency's resolved version drifts from the lock - after bumping a version in
+  `build.gradle.kts`, regenerate it with `./gradlew dependencies --write-locks` and commit the
+  result alongside the change.
+  - `com.velocitypowered:velocity-brigadier:1.0.0-SNAPSHOT` is a transitive dependency of
+    `velocity-api:4.0.0` and is locked like everything else, but SNAPSHOT artifacts are mutable
+    on the remote repo - the lock pins the version string, not the artifact content, so this one
+    dependency doesn't get the same reproducibility guarantee as the rest of the lockfile. This
+    is inherited from Velocity's own POM, not something fixable here.
 - `gson` is deliberately pinned to `2.14.0` and not shaded - it's the version Gradle actually
   resolves `velocity-api:4.0.0`'s own gson dependency to at runtime (verify with `./gradlew
 dependencies --configuration compileClasspath`). Bumping it requires re-verifying against
