@@ -24,8 +24,8 @@ dependencyLocking {
 }
 
 dependencies {
-    compileOnly("com.velocitypowered:velocity-api:4.1.0")
-    annotationProcessor("com.velocitypowered:velocity-api:4.1.0")
+    compileOnly("com.velocitypowered:velocity-api:4.1.1")
+    annotationProcessor("com.velocitypowered:velocity-api:4.1.1")
 
     // Provided by the Maintenance plugin itself at runtime (softdepend); not shaded.
     compileOnly("eu.kennytv.maintenance:maintenance-api-proxy:5.0.0")
@@ -45,7 +45,7 @@ dependencies {
     // MaintenanceStatusService references these compileOnly types in its field/constructor
     // signatures, so the test JVM needs them on the runtime classpath just to load the class -
     // even though the only thing actually under test is a static, dependency-free method.
-    testImplementation("com.velocitypowered:velocity-api:4.1.0")
+    testImplementation("com.velocitypowered:velocity-api:4.1.1")
     testImplementation("eu.kennytv.maintenance:maintenance-api-proxy:5.0.0")
 }
 
