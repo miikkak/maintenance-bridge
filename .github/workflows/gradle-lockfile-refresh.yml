@@ -1,0 +1,16 @@
+---
+name: Gradle Lockfile Refresh
+
+on: # yamllint disable-line rule:truthy
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lockfile:
+    name: Gradle Lockfile Refresh
+    uses: miikkak/workflows/.github/workflows/gradle-lockfile-refresh.yml@d2cb7afa8bb042add0d689a7357654814d5ab176 # main
+    secrets:
+      PULL_REQUEST_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
