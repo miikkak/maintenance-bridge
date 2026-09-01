@@ -35,13 +35,35 @@ public class MaintenanceBridgePlugin {
 
     @Subscribe
     public void onProxyInitialize(ProxyInitializeEvent event) {
-        final Maintenance api = MaintenanceProvider.get();
-        if (!(api instanceof MaintenanceProxy proxyApi)) {
-            logger.warn("Maintenance plugin not found (or not a proxy build) - bridge stays inactive.");
+        // Maintenance is an optional (soft) dependency: maintenance-api-proxy is compileOnly, so
+        // when the plugin isn't installed MaintenanceProvider isn't even on the runtime classpath
+        // and MaintenanceProvider.get() would throw NoClassDefFoundError - check PluginManager
+        // first so absence is a normal "stay inactive" path rather than a startup crash.
+        if (!server.getPluginManager().isLoaded("maintenance")) {
+            logger.warn("Maintenance plugin not found - bridge stays inactive.");
             return;
         }
 
-        logger.info("Found Maintenance {} - activating bridge", api.getVersion());
+        final MaintenanceProxy proxyApi;
+        try {
+            final Maintenance api = MaintenanceProvider.get();
+            // The instanceof check below also resolves MaintenanceProxy for the first time, which
+            // can itself throw LinkageError - keep it inside the same guarded region as
+            // MaintenanceProvider.get() rather than leaving it exposed right after the try block.
+            if (!(api instanceof MaintenanceProxy proxy)) {
+                logger.warn("Maintenance plugin is not a proxy build - bridge stays inactive.");
+                return;
+            }
+            proxyApi = proxy;
+            logger.info("Found Maintenance {} - activating bridge", api.getVersion());
+        } catch (final IllegalStateException | LinkageError e) {
+            // IllegalStateException: Maintenance is loaded but hasn't finished its own
+            // initialization yet. LinkageError (covers NoClassDefFoundError): belt-and-suspenders
+            // in case the isLoaded() check above raced Maintenance's own plugin load.
+            logger.warn("Maintenance plugin is present but its API is not available: {}", e.getMessage());
+            return;
+        }
+
         new MaintenanceStatusService(proxyApi, this, dataDirectory, logger).start(server);
     }
 }

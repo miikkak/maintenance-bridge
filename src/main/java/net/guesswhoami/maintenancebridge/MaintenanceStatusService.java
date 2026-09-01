@@ -8,6 +8,7 @@ import eu.kennytv.maintenance.api.event.MaintenanceChangedEvent;
 import eu.kennytv.maintenance.api.event.manager.EventListener;
 import eu.kennytv.maintenance.api.event.proxy.ServerMaintenanceChangedEvent;
 import eu.kennytv.maintenance.api.proxy.MaintenanceProxy;
+import eu.kennytv.maintenance.api.proxy.Server;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -215,6 +216,21 @@ final class MaintenanceStatusService {
     }
 
     private void applyRequest(final MaintenanceRequest request) {
+        // Resolve the backend once via getServer() (nullable) instead of a separate
+        // getServers().contains() check followed by getServerOrDummy(): the registry can change
+        // between two calls, which could let a name that passed the contains() check resolve to a
+        // DummyServer anyway. A null result means the name isn't registered - reject it up front,
+        // caught by pollRequestFile() and moved aside like any other bad request.
+        final Server targetServer;
+        if (request.server() == null) {
+            targetServer = null;
+        } else {
+            targetServer = api.getServer(request.server());
+            if (targetServer == null) {
+                throw new IllegalArgumentException("Unknown backend server: " + request.server());
+            }
+        }
+
         // status.json has no per-server slot for reason/ETA - only ever mutate the global fields
         // for proxy-wide requests. MaintenanceRequest.validate() already rejects reason/minutes
         // on a per-server request, but guard here too: without this, a per-server request would
@@ -229,26 +245,39 @@ final class MaintenanceStatusService {
             // window (observed on the real proxy: two refreshes logged for one request, the
             // first with a stale reason).
             if (request.maintenance()) {
+                // An omitted reason/minutes preserves whatever is already active, but only across
+                // an already-on-going maintenance window: activeReason()/plannedEndsAtEpochSeconds
+                // can go stale if maintenance was last turned off through a path that bypasses
+                // applyRequest() entirely (RCON, an in-game command, restart tooling) - none of
+                // those clear our internal state, they just get suppressed while reported (see
+                // reportedReason()/reportedPlannedEndsAt() below). Restoring that stale value on
+                // the next turn-on would be wrong, so only preserve when we were already on.
+                final boolean wasOn = api.isMaintenance();
                 if (request.reason() != null) {
                     api.getSettings().setActiveReason(request.reason());
+                } else if (!wasOn) {
+                    api.getSettings().setActiveReason(null);
+                }
+                if (request.minutes() != null) {
+                    plannedEndsAtEpochSeconds.set(computePlannedEndsAt(true, request.minutes(), Instant.now()));
+                } else if (!wasOn) {
+                    plannedEndsAtEpochSeconds.set(null);
                 }
             } else {
-                // Reason is only meaningful while maintenance is on - always clear it when
-                // turning off, regardless of what the request's reason field says, mirroring how
-                // computePlannedEndsAt always nulls the ETA on an "off" request below. Otherwise
-                // status.json can publish maintenance=false next to a stale reason from the
-                // previous on-cycle (observed live: turning maintenance off with reason:null
-                // left the prior reason in place).
+                // Reason/ETA are only meaningful while maintenance is on - always clear both when
+                // turning off, regardless of what the request says, so status.json never publishes
+                // maintenance=false next to a stale reason/ETA from the previous on-cycle
+                // (observed live: turning maintenance off with reason:null left the prior reason
+                // in place).
                 api.getSettings().setActiveReason(null);
+                plannedEndsAtEpochSeconds.set(null);
             }
-            plannedEndsAtEpochSeconds.set(
-                    computePlannedEndsAt(request.maintenance(), request.minutes(), Instant.now()));
         }
 
-        if (request.server() == null) {
+        if (targetServer == null) {
             api.setMaintenance(request.maintenance(), null);
         } else {
-            api.setMaintenanceToServer(api.getServerOrDummy(request.server()), request.maintenance(), null);
+            api.setMaintenanceToServer(targetServer, request.maintenance(), null);
         }
     }
 
