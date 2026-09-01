@@ -59,6 +59,22 @@ reviews:
         Formatting/lint tooling (shfmt, shellcheck) already covers style and
         syntax — only flag real logic, safety, or correctness issues here,
         not things a formatter would already fix.
+    - path: "**/*.java"
+      instructions: |
+        This is a Velocity proxy plugin deployed to a dedicated Minecraft
+        server host running Gentoo Linux — never Windows. Do not suggest
+        Windows-specific path handling, line-ending concerns, or
+        cross-platform compatibility shims; POSIX-only behavior is correct
+        and intentional, not an oversight.
+        The deployment host is a dedicated game server with limited shell
+        access, not a general-purpose admin workstation — do not suggest
+        operational tooling, interactive debugging aids, or workflows that
+        assume broad interactive shell access on the deployment host itself.
+        JDK 25 is an intentional pin, not premature: it matches the Oracle
+        GraalVM base image used by the Minecraft server containers this
+        plugin is deployed alongside, chosen to track Mojang's latest
+        supported Minecraft version compatibility. Do not flag it as too new
+        or suggest lowering it for broader Java/Velocity compatibility.
     - path: "**/*.{yml,yaml}"
       instructions: |
         GitHub Actions workflows in this environment prefer self-hosted
