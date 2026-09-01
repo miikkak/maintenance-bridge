@@ -8,9 +8,8 @@ package net.guesswhoami.maintenancebridge;
  * per-server slot for them, so a per-server request setting either is rejected by {@link
  * #validate()}.
  *
- * <p>Plain mutable class rather than a record for the same reason as {@link StatusFile}: Gson
- * (bundled in Velocity 4.0.0) reflectively sets fields on instances allocated via {@code Unsafe}
- * and can't populate a record's implicitly-final fields.
+ * <p>Plain mutable class rather than a record for the same reason as {@link StatusFile} — see
+ * that class's Javadoc.
  */
 final class MaintenanceRequest {
 
