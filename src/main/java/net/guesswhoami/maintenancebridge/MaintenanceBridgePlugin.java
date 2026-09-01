@@ -44,9 +44,18 @@ public class MaintenanceBridgePlugin {
             return;
         }
 
-        final Maintenance api;
+        final MaintenanceProxy proxyApi;
         try {
-            api = MaintenanceProvider.get();
+            final Maintenance api = MaintenanceProvider.get();
+            // The instanceof check below also resolves MaintenanceProxy for the first time, which
+            // can itself throw LinkageError - keep it inside the same guarded region as
+            // MaintenanceProvider.get() rather than leaving it exposed right after the try block.
+            if (!(api instanceof MaintenanceProxy proxy)) {
+                logger.warn("Maintenance plugin is not a proxy build - bridge stays inactive.");
+                return;
+            }
+            proxyApi = proxy;
+            logger.info("Found Maintenance {} - activating bridge", api.getVersion());
         } catch (final IllegalStateException | LinkageError e) {
             // IllegalStateException: Maintenance is loaded but hasn't finished its own
             // initialization yet. LinkageError (covers NoClassDefFoundError): belt-and-suspenders
@@ -54,12 +63,7 @@ public class MaintenanceBridgePlugin {
             logger.warn("Maintenance plugin is present but its API is not available: {}", e.getMessage());
             return;
         }
-        if (!(api instanceof MaintenanceProxy proxyApi)) {
-            logger.warn("Maintenance plugin is not a proxy build - bridge stays inactive.");
-            return;
-        }
 
-        logger.info("Found Maintenance {} - activating bridge", api.getVersion());
         new MaintenanceStatusService(proxyApi, this, dataDirectory, logger).start(server);
     }
 }
