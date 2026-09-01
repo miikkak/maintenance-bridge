@@ -4,6 +4,17 @@ A Velocity plugin that mirrors [kennytv's Maintenance](https://github.com/kennyt
 plugin state to the filesystem, so other tooling can read and set maintenance mode without
 going through RCON.
 
+## About this project
+
+This was built with heavy Claude Code assistance — most of the implementation is AI-generated,
+with the design and review driven by me. It has unit test coverage (`StatusFileTest`,
+`MaintenanceRequestTest`, `MaintenanceStatusServiceTest`) and runs on my own production Velocity
+proxy, so it sees real day-to-day use, not just its own test suite. This one is a bit more
+security-sensitive than its sibling plugins (it acts on external input to toggle maintenance
+mode, not just export status — see SECURITY.md's Scope section), so extra scrutiny on the
+`request.json` handling path is especially welcome. Read the source and file issues if something
+looks off.
+
 ## Why
 
 Maintenance mode is normally read and set via RCON (`maintenance status`, `maintenance on/off`).
@@ -114,4 +125,4 @@ dependencies --configuration compileClasspath`). Bumping it requires re-verifyin
 
 ## License
 
-TBD
+[MIT License](LICENSE) - Copyright (c) 2026 Miikka Karhuluoma

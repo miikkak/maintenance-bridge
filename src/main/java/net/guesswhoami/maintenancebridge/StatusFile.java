@@ -6,9 +6,12 @@ import java.util.Map;
 /**
  * Snapshot written to {@code status.json} for external readers (scripts, website).
  *
- * <p>Deliberately a plain mutable class, not a record: Gson (bundled in Velocity 4.0.0)
- * reflectively sets fields on instances allocated via {@code Unsafe} - it cannot populate a
- * record's implicitly-final fields.
+ * <p>A plain mutable class, not a record — historically because Gson's default deserialization
+ * path (Unsafe-allocated instances with reflective field-set) can't populate a record's
+ * implicitly-final fields, but Gson has supported records via a dedicated canonical-constructor
+ * path since 2.10, and the actually-bundled version (2.14.0, see the {@code gson} dependency
+ * comment in {@code build.gradle.kts}) postdates that. Left as a plain class for now as a style
+ * choice, not a technical constraint; converting to a record would be a reasonable follow-up.
  */
 final class StatusFile {
 
