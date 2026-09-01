@@ -19,6 +19,11 @@ final class MaintenanceRequest {
     private static final long MAX_MINUTES = 30 * 24 * 60L; // 30 days - generous, but bounded so
     // computePlannedEndsAt() can't be pushed into Instant's overflow range by a bogus value.
 
+    // Minecraft's protocol caps string fields well under this (~32,767 bytes); reason ends up in
+    // both the MOTD status ping and kick screens, so an oversized value would fail to encode and
+    // disconnect/refuse otherwise-fine clients. Generous but bounded well below that limit.
+    private static final int MAX_REASON_LENGTH = 1000;
+
     private Boolean maintenance;
     private String reason;
     private Long minutes;
@@ -49,6 +54,9 @@ final class MaintenanceRequest {
         }
         if (minutes != null && minutes > MAX_MINUTES) {
             throw new IllegalArgumentException("\"minutes\" must not exceed " + MAX_MINUTES);
+        }
+        if (reason != null && reason.length() > MAX_REASON_LENGTH) {
+            throw new IllegalArgumentException("\"reason\" must not exceed " + MAX_REASON_LENGTH + " characters");
         }
         if (server != null && (reason != null || minutes != null)) {
             throw new IllegalArgumentException(

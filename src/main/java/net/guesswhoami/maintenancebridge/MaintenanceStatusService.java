@@ -215,6 +215,14 @@ final class MaintenanceStatusService {
     }
 
     private void applyRequest(final MaintenanceRequest request) {
+        // getServerOrDummy() silently fabricates a placeholder for an unregistered name instead
+        // of failing, so a typo'd server would otherwise be accepted, delete the request, and
+        // never actually put the intended backend into maintenance. Reject it up front instead -
+        // this is caught by pollRequestFile() and moved aside like any other bad request.
+        if (request.server() != null && !api.getServers().contains(request.server())) {
+            throw new IllegalArgumentException("Unknown backend server: " + request.server());
+        }
+
         // status.json has no per-server slot for reason/ETA - only ever mutate the global fields
         // for proxy-wide requests. MaintenanceRequest.validate() already rejects reason/minutes
         // on a per-server request, but guard here too: without this, a per-server request would
@@ -229,20 +237,23 @@ final class MaintenanceStatusService {
             // window (observed on the real proxy: two refreshes logged for one request, the
             // first with a stale reason).
             if (request.maintenance()) {
+                // An omitted reason/minutes preserves whatever is already active rather than
+                // clearing it - a request only overwrites the fields it actually specifies.
                 if (request.reason() != null) {
                     api.getSettings().setActiveReason(request.reason());
                 }
+                if (request.minutes() != null) {
+                    plannedEndsAtEpochSeconds.set(computePlannedEndsAt(true, request.minutes(), Instant.now()));
+                }
             } else {
-                // Reason is only meaningful while maintenance is on - always clear it when
-                // turning off, regardless of what the request's reason field says, mirroring how
-                // computePlannedEndsAt always nulls the ETA on an "off" request below. Otherwise
-                // status.json can publish maintenance=false next to a stale reason from the
-                // previous on-cycle (observed live: turning maintenance off with reason:null
-                // left the prior reason in place).
+                // Reason/ETA are only meaningful while maintenance is on - always clear both when
+                // turning off, regardless of what the request says, so status.json never publishes
+                // maintenance=false next to a stale reason/ETA from the previous on-cycle
+                // (observed live: turning maintenance off with reason:null left the prior reason
+                // in place).
                 api.getSettings().setActiveReason(null);
+                plannedEndsAtEpochSeconds.set(null);
             }
-            plannedEndsAtEpochSeconds.set(
-                    computePlannedEndsAt(request.maintenance(), request.minutes(), Instant.now()));
         }
 
         if (request.server() == null) {
