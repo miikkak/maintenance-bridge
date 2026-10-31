@@ -11,6 +11,6 @@ permissions:
 jobs:
   refresh-lockfile:
     name: Gradle Lockfile Refresh
-    uses: miikkak/workflows/.github/workflows/gradle-lockfile-refresh.yml@a05438d3b5a13cecfadc58d9d7b7692c55d1bfc8 # main
+    uses: miikkak/workflows/.github/workflows/gradle-lockfile-refresh.yml@de13b1e7dec264c72b819133fc4b1ae743582756 # main
     secrets:
       PULL_REQUEST_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
